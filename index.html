@@ -22,11 +22,19 @@
             opacity: 1;
         }
         .image-choice-container {
-            transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+            transition: transform 0.2s ease-out, box-shadow 0.2s ease-out, border-color 0.3s ease-out;
         }
-        .image-choice-container:hover {
+        .image-choice-container:hover:not(.disabled) {
             transform: scale(1.03);
-            box-shadow: 0 0 30px rgba(96, 165, 250, 0.5); /* blue-400 glow */
+            box-shadow: 0 0 30px rgba(96, 165, 250, 0.5);
+        }
+        .image-choice-container.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .image-choice-container.winner {
+            border-color: #10B981 !important;
+            box-shadow: 0 0 40px rgba(16, 185, 129, 0.6);
         }
         #image-preview-grid {
             display: grid;
@@ -36,49 +44,110 @@
         #modal-screen {
             transition: opacity 0.3s ease-in-out;
         }
+        .trophy-animation {
+            animation: bounce 0.5s ease-in-out;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+        .keyboard-hint {
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+        }
+        .drag-over {
+            background-color: rgba(59, 130, 246, 0.1);
+            border-color: rgb(59, 130, 246);
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-200 flex items-center justify-center min-h-screen p-4">
 
     <div class="w-full max-w-6xl mx-auto">
-        <!-- Screen 1: Upload Photos -->
         <div id="upload-screen" class="screen active flex-col items-center justify-center text-center p-8 bg-gray-800 rounded-2xl shadow-2xl">
             <h1 class="text-4xl md:text-5xl font-bold text-white mb-4">Photo ELO Ranker</h1>
             <p class="text-lg text-gray-400 mb-8">Upload a set of photos to compare them head-to-head and find your top-ranked ones.</p>
             
-            <label for="photo-upload" class="w-full max-w-lg cursor-pointer bg-gray-700 hover:bg-gray-600 border-2 border-dashed border-gray-500 rounded-xl p-8 text-center transition mb-6">
+            <label for="photo-upload" id="upload-area" class="w-full max-w-lg cursor-pointer bg-gray-700 hover:bg-gray-600 border-2 border-dashed border-gray-500 rounded-xl p-8 text-center transition mb-6">
+                <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
                 <span id="upload-prompt" class="text-gray-400">Click to select photos or drag and drop</span>
                 <input id="photo-upload" type="file" class="hidden" multiple accept="image/*">
+                <p class="text-xs text-gray-500 mt-2">PNG, JPG, GIF up to 10MB each</p>
             </label>
             
-            <div id="image-preview-container" class="w-full max-w-4xl mb-6 hidden">
-                <h3 class="text-xl font-bold mb-4">Uploaded Photos: <span id="photo-count-preview">0</span></h3>
+            <div id="image-preview-container" class="w-full max-w-4xl mb-6 hidden fade-in">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold">Uploaded Photos: <span id="photo-count-preview" class="text-blue-400">0</span></h3>
+                    <button id="clear-photos-btn" class="text-sm text-red-400 hover:text-red-300 transition">Clear All</button>
+                </div>
                 <div id="image-preview-grid" class="max-h-64 overflow-y-auto p-4 bg-gray-900 rounded-lg"></div>
             </div>
 
-            <button id="start-setup-btn" class="bg-blue-600 text-white font-bold py-3 px-8 rounded-lg text-lg hover:bg-blue-700 transition transform hover:scale-105 disabled:bg-gray-600 disabled:cursor-not-allowed disabled:scale-100" disabled>
+            <button id="start-setup-btn" class="bg-blue-600 text-white font-bold py-3 px-8 rounded-lg text-lg hover:bg-blue-700 transition transform hover:scale-105 disabled:bg-gray-600 disabled:cursor-not-allowed disabled:scale-100 disabled:opacity-50" disabled>
                 Continue to Settings
             </button>
             <p id="upload-hint" class="text-gray-500 mt-4 text-sm">Please upload at least 2 photos to begin.</p>
         </div>
 
-        <!-- Screen 2: Settings -->
         <div id="settings-screen" class="screen flex-col items-center justify-center text-center p-8 bg-gray-800 rounded-2xl shadow-2xl">
             <h2 class="text-4xl font-bold text-white mb-4">Set Number of Comparisons</h2>
             <p class="text-lg text-gray-400 mb-2">More comparisons yield more accurate rankings but take longer.</p>
-            <p class="text-md text-gray-400 mb-8">For <strong id="photo-count" class="text-blue-400">0</strong> photos, <strong id="recommended-comparisons" class="text-blue-400">0</strong> comparisons are recommended. <br> (Max unique pairs: <strong id="max-comparisons" class="text-blue-400">0</strong>)</p>
+            
+            <div class="bg-gray-700 rounded-lg p-4 mb-8 max-w-lg w-full">
+                <div class="grid grid-cols-3 gap-4 text-sm">
+                    <div>
+                        <p class="text-gray-400 mb-1">Photos</p>
+                        <p class="text-2xl font-bold text-blue-400" id="photo-count">0</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 mb-1">Minimum</p>
+                        <p class="text-2xl font-bold text-yellow-400" id="min-comparisons">0</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 mb-1">Maximum</p>
+                        <p class="text-2xl font-bold text-green-400" id="max-comparisons">0</p>
+                    </div>
+                </div>
+                <div class="mt-4 pt-4 border-t border-gray-600">
+                    <p class="text-gray-400 text-sm">Recommended for best results</p>
+                    <p class="text-2xl font-bold text-white mt-1" id="recommended-comparisons">0</p>
+                </div>
+            </div>
             
             <div class="mb-8 w-full max-w-xs">
-                 <label for="comparisons-input" class="block text-left font-medium text-gray-300 mb-2">Total comparisons:</label>
-                 <input type="number" id="comparisons-input" min="1" class="w-full bg-gray-700 border border-gray-600 text-white text-center text-xl p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <label for="comparisons-input" class="block text-left font-medium text-gray-300 mb-2">Total comparisons:</label>
+                <div class="relative">
+                    <input type="number" id="comparisons-input" min="1" class="w-full bg-gray-700 border border-gray-600 text-white text-center text-xl p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <div id="comparison-error" class="hidden text-red-400 text-sm mt-2 fade-in"></div>
+                </div>
             </div>
 
-            <button id="start-ranking-btn" class="bg-green-600 text-white font-bold py-3 px-8 rounded-lg text-lg hover:bg-green-700 transition transform hover:scale-105">
-                Start Ranking
-            </button>
+            <div class="flex gap-4">
+                <button id="back-to-upload-btn" class="bg-gray-600 text-white font-bold py-3 px-8 rounded-lg text-lg hover:bg-gray-700 transition transform hover:scale-105">
+                    Back
+                </button>
+                <button id="start-ranking-btn" class="bg-green-600 text-white font-bold py-3 px-8 rounded-lg text-lg hover:bg-green-700 transition transform hover:scale-105">
+                    Start Ranking
+                </button>
+            </div>
         </div>
 
-        <!-- Screen 3: Ranking -->
         <div id="ranking-screen" class="screen flex-col items-center justify-center w-full">
             <h2 class="text-3xl font-bold text-white mb-2">Which one do you prefer?</h2>
             
@@ -87,8 +156,12 @@
                     <span>Progress</span>
                     <span id="progress-text">Comparison 0 of 0</span>
                 </div>
-                <div class="w-full bg-gray-700 rounded-full h-4">
+                <div class="w-full bg-gray-700 rounded-full h-4 overflow-hidden">
                     <div id="progress-bar-inner" class="bg-blue-600 h-4 rounded-full transition-all duration-300 ease-linear" style="width: 0%"></div>
+                </div>
+                <div class="flex justify-between items-center mt-2">
+                    <p class="text-xs text-gray-500">Estimated time: <span id="estimated-time">0:00</span></p>
+                    <p class="text-xs text-gray-500">Completed: <span id="completed-percentage">0%</span></p>
                 </div>
             </div>
 
@@ -96,20 +169,80 @@
                 <div class="image-choice-container w-full md:w-1/2 max-w-lg cursor-pointer bg-gray-800 rounded-xl overflow-hidden shadow-lg border-4 border-transparent" data-index="0">
                     <img id="img-left" class="w-full h-auto object-cover aspect-square" src="https://placehold.co/600x600/111827/FFF?text=Image+1">
                 </div>
+                <div class="text-2xl font-bold text-gray-600 hidden md:block">VS</div>
                 <div class="image-choice-container w-full md:w-1/2 max-w-lg cursor-pointer bg-gray-800 rounded-xl overflow-hidden shadow-lg border-4 border-transparent" data-index="1">
                     <img id="img-right" class="w-full h-auto object-cover aspect-square" src="https://placehold.co/600x600/111827/FFF?text=Image+2">
                 </div>
             </div>
+
+            <div class="mt-8 flex gap-4">
+                <button id="undo-btn" class="bg-gray-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-gray-700 transition transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100" disabled>
+                    <svg class="inline-block w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path>
+                    </svg>
+                    Undo
+                </button>
+                <button id="equal-btn" class="bg-yellow-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-yellow-700 transition transform hover:scale-105">
+                    Equal
+                </button>
+                <button id="pause-btn" class="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 transition transform hover:scale-105">
+                    <svg class="inline-block w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Pause
+                </button>
+            </div>
+
+            <div class="mt-4 keyboard-hint rounded-lg px-4 py-2 text-sm text-gray-300">
+                <span class="font-semibold">Keyboard shortcuts:</span> 
+                <kbd class="bg-gray-700 px-2 py-1 rounded mx-1">←</kbd> Left image
+                <kbd class="bg-gray-700 px-2 py-1 rounded mx-1">→</kbd> Right image
+                <kbd class="bg-gray-700 px-2 py-1 rounded mx-1">U</kbd> Undo
+                <kbd class="bg-gray-700 px-2 py-1 rounded mx-1">E</kbd> Equal
+            </div>
         </div>
 
-        <!-- Screen 4: Results -->
         <div id="results-screen" class="screen flex-col items-center justify-center p-8 bg-gray-800 rounded-2xl shadow-2xl">
-            <h2 class="text-4xl font-bold text-white mb-8">Ranking Results</h2>
+            <h2 class="text-4xl font-bold text-white mb-4">Ranking Results</h2>
+            <div class="flex gap-4 mb-6">
+                <button id="sort-elo-btn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition">Sort by ELO</button>
+                <button id="sort-matches-btn" class="bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition">Sort by Matches</button>
+                <button id="export-btn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition">Export Results</button>
+            </div>
+            
+            <div id="top-three" class="flex gap-4 mb-8 w-full max-w-4xl hidden">
+                <div id="second-place" class="flex-1 text-center">
+                    <div class="text-4xl mb-2">🥈</div>
+                    <div class="bg-gray-700 rounded-lg overflow-hidden shadow-lg">
+                        <img class="w-full h-auto aspect-square object-cover">
+                        <div class="p-2">
+                            <p class="font-bold text-lg text-white">ELO: <span></span></p>
+                        </div>
+                    </div>
+                </div>
+                <div id="first-place" class="flex-1 text-center trophy-animation">
+                    <div class="text-5xl mb-2">🏆</div>
+                    <div class="bg-gradient-to-br from-yellow-600 to-yellow-800 rounded-lg overflow-hidden shadow-lg transform scale-110">
+                        <img class="w-full h-auto aspect-square object-cover">
+                        <div class="p-2">
+                            <p class="font-bold text-xl text-white">ELO: <span></span></p>
+                        </div>
+                    </div>
+                </div>
+                <div id="third-place" class="flex-1 text-center">
+                    <div class="text-4xl mb-2">🥉</div>
+                    <div class="bg-gray-700 rounded-lg overflow-hidden shadow-lg">
+                        <img class="w-full h-auto aspect-square object-cover">
+                        <div class="p-2">
+                            <p class="font-bold text-lg text-white">ELO: <span></span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div id="results-gallery" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 w-full max-w-6xl mb-8">
-                <!-- Results will be injected here -->
             </div>
             <div id="pagination-container" class="flex items-center justify-center gap-2 mt-2">
-                <!-- Pagination buttons will be injected here -->
             </div>
             <button id="reset-btn" class="bg-blue-600 text-white font-bold py-3 px-8 rounded-lg text-lg hover:bg-blue-700 transition transform hover:scale-105 mt-8">
                 Start Over
@@ -117,29 +250,45 @@
         </div>
     </div>
 
-    <!-- Screen 5: Fullscreen Image Modal -->
     <div id="modal-screen" class="fixed inset-0 bg-black bg-opacity-90 hidden items-center justify-center p-4 z-50">
-        <div class="relative max-w-4xl max-h-full">
+        <div class="relative max-w-5xl max-h-full">
             <img id="modal-image" src="" class="max-w-full max-h-[90vh] object-contain rounded-lg">
+            <div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-70 text-white px-4 py-2 rounded-lg">
+                <p class="font-bold">ELO: <span id="modal-elo"></span> | Rank: #<span id="modal-rank"></span></p>
+            </div>
             <button id="modal-close-btn" class="absolute -top-3 -right-3 bg-white text-black rounded-full h-10 w-10 flex items-center justify-center font-bold text-2xl hover:bg-gray-300 transition">&times;</button>
         </div>
     </div>
 
+    <div id="pause-modal" class="fixed inset-0 bg-black bg-opacity-90 hidden items-center justify-center p-4 z-50">
+        <div class="bg-gray-800 rounded-2xl p-8 max-w-md text-center">
+            <h3 class="text-2xl font-bold text-white mb-4">Ranking Paused</h3>
+            <p class="text-gray-400 mb-6">Take a break! Your progress has been saved.</p>
+            <div class="bg-gray-700 rounded-lg p-4 mb-6">
+                <p class="text-sm text-gray-400">Progress</p>
+                <p class="text-xl font-bold text-white"><span id="pause-progress"></span> comparisons completed</p>
+            </div>
+            <button id="resume-btn" class="bg-green-600 text-white font-bold py-3 px-8 rounded-lg text-lg hover:bg-green-700 transition transform hover:scale-105">
+                Resume Ranking
+            </button>
+        </div>
+    </div>
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        // --- STATE MANAGEMENT ---
         let photos = [];
         let allPossiblePairs = [];
         let comparisonsToDo = 0;
         let comparisonsDone = 0;
         let currentPair = [];
-        const K_FACTOR = 32; // Standard ELO K-factor
+        let currentPairIndex = 0;
+        let comparisonHistory = [];
+        let startTime = null;
+        const K_FACTOR = 32;
         const PHOTOS_PER_PAGE = 10;
         let currentPage = 1;
+        let currentSortMethod = 'elo';
 
-
-        // --- DOM ELEMENTS ---
         const screens = {
             upload: document.getElementById('upload-screen'),
             settings: document.getElementById('settings-screen'),
@@ -149,31 +298,48 @@
         const modalScreen = document.getElementById('modal-screen');
         const modalImage = document.getElementById('modal-image');
         const modalCloseBtn = document.getElementById('modal-close-btn');
+        const modalElo = document.getElementById('modal-elo');
+        const modalRank = document.getElementById('modal-rank');
+        const pauseModal = document.getElementById('pause-modal');
+        const pauseProgress = document.getElementById('pause-progress');
+        const resumeBtn = document.getElementById('resume-btn');
 
         const photoUpload = document.getElementById('photo-upload');
+        const uploadArea = document.getElementById('upload-area');
         const imagePreviewContainer = document.getElementById('image-preview-container');
         const imagePreviewGrid = document.getElementById('image-preview-grid');
         const photoCountPreview = document.getElementById('photo-count-preview');
         const startSetupBtn = document.getElementById('start-setup-btn');
         const uploadHint = document.getElementById('upload-hint');
+        const clearPhotosBtn = document.getElementById('clear-photos-btn');
+        const backToUploadBtn = document.getElementById('back-to-upload-btn');
 
         const photoCountSpan = document.getElementById('photo-count');
         const recommendedComparisonsSpan = document.getElementById('recommended-comparisons');
         const maxComparisonsSpan = document.getElementById('max-comparisons');
+        const minComparisonsSpan = document.getElementById('min-comparisons');
         const comparisonsInput = document.getElementById('comparisons-input');
+        const comparisonError = document.getElementById('comparison-error');
         const startRankingBtn = document.getElementById('start-ranking-btn');
 
         const progressText = document.getElementById('progress-text');
         const progressBarInner = document.getElementById('progress-bar-inner');
+        const estimatedTime = document.getElementById('estimated-time');
+        const completedPercentage = document.getElementById('completed-percentage');
         const imgLeft = document.getElementById('img-left');
         const imgRight = document.getElementById('img-right');
         const imageChoices = document.querySelectorAll('.image-choice-container');
+        const undoBtn = document.getElementById('undo-btn');
+        const equalBtn = document.getElementById('equal-btn');
+        const pauseBtn = document.getElementById('pause-btn');
 
         const resultsGallery = document.getElementById('results-gallery');
         const paginationContainer = document.getElementById('pagination-container');
         const resetBtn = document.getElementById('reset-btn');
-
-        // --- FUNCTIONS ---
+        const sortEloBtn = document.getElementById('sort-elo-btn');
+        const sortMatchesBtn = document.getElementById('sort-matches-btn');
+        const exportBtn = document.getElementById('export-btn');
+        const topThree = document.getElementById('top-three');
 
         const showScreen = (screenName) => {
             Object.values(screens).forEach(screen => screen.classList.remove('active'));
@@ -192,20 +358,44 @@
                         name: file.name,
                         src: URL.createObjectURL(file),
                         elo: 1000,
-                        matchesPlayed: 0
+                        matchesPlayed: 0,
+                        wins: 0,
+                        losses: 0,
+                        ties: 0
                     });
                 }
             }
             updateUploadUI();
         };
 
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('drag-over');
+        });
+
+        uploadArea.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('drag-over');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            photoUpload.files = files;
+            handleFileUpload({ target: { files } });
+        });
+
         const updateUploadUI = () => {
             imagePreviewGrid.innerHTML = '';
-            photos.forEach(photo => {
-                const img = document.createElement('img');
-                img.src = photo.src;
-                img.className = 'w-full h-full object-cover rounded-md';
-                imagePreviewGrid.appendChild(img);
+            photos.forEach((photo, index) => {
+                const container = document.createElement('div');
+                container.className = 'relative group';
+                container.innerHTML = `
+                    <img src="${photo.src}" class="w-full h-full object-cover rounded-md">
+                    <button class="absolute top-1 right-1 bg-red-600 text-white rounded-full w-6 h-6 opacity-0 group-hover:opacity-100 transition" onclick="removePhoto(${index})">×</button>
+                `;
+                imagePreviewGrid.appendChild(container);
             });
             photoCountPreview.textContent = photos.length;
             imagePreviewContainer.classList.toggle('hidden', photos.length === 0);
@@ -213,7 +403,6 @@
             if (photos.length >= 2) {
                 startSetupBtn.disabled = false;
                 uploadHint.classList.add('hidden');
-                // Reset styles
                 uploadHint.classList.add('text-gray-500');
                 uploadHint.classList.remove('text-red-400', 'font-semibold');
                 uploadHint.textContent = 'Please upload at least 2 photos to begin.';
@@ -221,16 +410,23 @@
                 startSetupBtn.disabled = true;
                 uploadHint.classList.remove('hidden');
                 
-                if (photos.length > 0) { // User has uploaded files, but not enough
+                if (photos.length > 0) {
                      uploadHint.classList.remove('text-gray-500');
                      uploadHint.classList.add('text-red-400', 'font-semibold');
                      uploadHint.textContent = `Error: Please upload at least 2 photos. You've only selected ${photos.length}.`;
-                } else { // Initial state, 0 photos
+                } else {
                      uploadHint.classList.add('text-gray-500');
                      uploadHint.classList.remove('text-red-400', 'font-semibold');
                      uploadHint.textContent = 'Please upload at least 2 photos to begin.';
                 }
             }
+        };
+
+        window.removePhoto = (index) => {
+            URL.revokeObjectURL(photos[index].src);
+            photos.splice(index, 1);
+            photos.forEach((photo, i) => photo.id = i);
+            updateUploadUI();
         };
 
         const resetPhotos = () => {
@@ -246,28 +442,59 @@
                 }
             }
 
-            // Fisher-Yates Shuffle
             for (let i = allPossiblePairs.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [allPossiblePairs[i], allPossiblePairs[j]] = [allPossiblePairs[j], allPossiblePairs[i]];
             }
 
             const n = photos.length;
-            const recommended = Math.min(Math.ceil(n * 5), allPossiblePairs.length);
+            const minComparisons = n - 1;
+            const maxComparisons = allPossiblePairs.length;
+            const recommended = Math.min(Math.max(Math.ceil(n * Math.log2(n)), minComparisons), maxComparisons);
+            
             photoCountSpan.textContent = n;
+            minComparisonsSpan.textContent = minComparisons;
+            maxComparisonsSpan.textContent = maxComparisons;
             recommendedComparisonsSpan.textContent = recommended;
-            maxComparisonsSpan.textContent = allPossiblePairs.length;
+            
             comparisonsInput.value = recommended;
-            comparisonsInput.max = allPossiblePairs.length;
+            comparisonsInput.min = minComparisons;
+            comparisonsInput.max = maxComparisons;
+            
             showScreen('settings');
         };
 
+        comparisonsInput.addEventListener('input', () => {
+            const value = parseInt(comparisonsInput.value, 10);
+            const min = parseInt(comparisonsInput.min, 10);
+            const max = parseInt(comparisonsInput.max, 10);
+            
+            if (value < min || value > max || isNaN(value)) {
+                comparisonError.textContent = `Please enter a value between ${min} and ${max}`;
+                comparisonError.classList.remove('hidden');
+                startRankingBtn.disabled = true;
+            } else {
+                comparisonError.classList.add('hidden');
+                startRankingBtn.disabled = false;
+            }
+        });
+
         const startRanking = () => {
             let userInput = parseInt(comparisonsInput.value, 10);
-            if (isNaN(userInput) || userInput < 1) userInput = 1;
+            const min = parseInt(comparisonsInput.min, 10);
+            const max = parseInt(comparisonsInput.max, 10);
             
-            comparisonsToDo = Math.min(userInput, allPossiblePairs.length);
+            if (isNaN(userInput) || userInput < min) {
+                userInput = min;
+            } else if (userInput > max) {
+                userInput = max;
+            }
+            
+            comparisonsToDo = userInput;
             comparisonsDone = 0;
+            currentPairIndex = 0;
+            comparisonHistory = [];
+            startTime = Date.now();
             updateProgress();
             displayNextPair();
             showScreen('ranking');
@@ -279,51 +506,197 @@
                 return;
             }
 
-            const pairIndices = allPossiblePairs[comparisonsDone];
+            if (currentPairIndex >= allPossiblePairs.length) {
+                currentPairIndex = 0;
+            }
+
+            const pairIndices = allPossiblePairs[currentPairIndex];
             const index1 = pairIndices[0];
             const index2 = pairIndices[1];
             
             currentPair = [index1, index2];
             imgLeft.src = photos[index1].src;
             imgRight.src = photos[index2].src;
+            
+            imageChoices.forEach(choice => {
+                choice.classList.remove('disabled', 'winner');
+            });
         };
 
         const handleChoice = (selectedIndexInPair) => {
             const winnerIndex = currentPair[selectedIndexInPair];
             const loserIndex = currentPair[1 - selectedIndexInPair];
-            updateElo(winnerIndex, loserIndex);
+            
+            comparisonHistory.push({
+                pair: [...currentPair],
+                winner: winnerIndex,
+                loser: loserIndex,
+                tie: false,
+                previousElos: {
+                    winner: photos[winnerIndex].elo,
+                    loser: photos[loserIndex].elo
+                }
+            });
+            
+            updateElo(winnerIndex, loserIndex, false);
             comparisonsDone++;
+            currentPairIndex++;
             updateProgress();
             
-            imageChoices[selectedIndexInPair].style.borderColor = '#10B981';
+            imageChoices[selectedIndexInPair].classList.add('winner');
+            imageChoices.forEach(choice => choice.classList.add('disabled'));
+            
             setTimeout(() => {
-                imageChoices[selectedIndexInPair].style.borderColor = 'transparent';
+                imageChoices.forEach(choice => {
+                    choice.classList.remove('disabled', 'winner');
+                });
                 displayNextPair();
-            }, 300);
+            }, 400);
+            
+            undoBtn.disabled = false;
         };
 
-        const updateElo = (winnerIndex, loserIndex) => {
-            const winner = photos[winnerIndex];
-            const loser = photos[loserIndex];
-
-            const winnerExpected = 1 / (1 + Math.pow(10, (loser.elo - winner.elo) / 400));
-            const loserExpected = 1 / (1 + Math.pow(10, (winner.elo - loser.elo) / 400));
-
-            winner.elo += K_FACTOR * (1 - winnerExpected);
-            loser.elo += K_FACTOR * (0 - loserExpected);
+        const handleEqual = () => {
+            const index1 = currentPair[0];
+            const index2 = currentPair[1];
             
-            winner.matchesPlayed++;
-            loser.matchesPlayed++;
+            comparisonHistory.push({
+                pair: [...currentPair],
+                winner: null,
+                loser: null,
+                tie: true,
+                previousElos: {
+                    index1: photos[index1].elo,
+                    index2: photos[index2].elo
+                }
+            });
+            
+            updateElo(index1, index2, true);
+            comparisonsDone++;
+            currentPairIndex++;
+            updateProgress();
+            
+            setTimeout(() => {
+                displayNextPair();
+            }, 200);
+            
+            undoBtn.disabled = false;
+        };
+
+        const handleUndo = () => {
+            if (comparisonHistory.length === 0) return;
+            
+            const lastComparison = comparisonHistory.pop();
+            
+            if (lastComparison.tie) {
+                const index1 = lastComparison.pair[0];
+                const index2 = lastComparison.pair[1];
+                photos[index1].elo = lastComparison.previousElos.index1;
+                photos[index2].elo = lastComparison.previousElos.index2;
+                photos[index1].matchesPlayed--;
+                photos[index2].matchesPlayed--;
+                photos[index1].ties--;
+                photos[index2].ties--;
+            } else {
+                photos[lastComparison.winner].elo = lastComparison.previousElos.winner;
+                photos[lastComparison.loser].elo = lastComparison.previousElos.loser;
+                photos[lastComparison.winner].matchesPlayed--;
+                photos[lastComparison.loser].matchesPlayed--;
+                photos[lastComparison.winner].wins--;
+                photos[lastComparison.loser].losses--;
+            }
+            
+            comparisonsDone--;
+            currentPairIndex--;
+            updateProgress();
+            
+            currentPair = lastComparison.pair;
+            imgLeft.src = photos[currentPair[0]].src;
+            imgRight.src = photos[currentPair[1]].src;
+            
+            if (comparisonHistory.length === 0) {
+                undoBtn.disabled = true;
+            }
+        };
+
+        const updateElo = (index1, index2, isTie) => {
+            const photo1 = photos[index1];
+            const photo2 = photos[index2];
+
+            const expected1 = 1 / (1 + Math.pow(10, (photo2.elo - photo1.elo) / 400));
+            const expected2 = 1 / (1 + Math.pow(10, (photo1.elo - photo2.elo) / 400));
+
+            if (isTie) {
+                photo1.elo += K_FACTOR * (0.5 - expected1);
+                photo2.elo += K_FACTOR * (0.5 - expected2);
+                photo1.ties++;
+                photo2.ties++;
+            } else {
+                photo1.elo += K_FACTOR * (1 - expected1);
+                photo2.elo += K_FACTOR * (0 - expected2);
+                photo1.wins++;
+                photo2.losses++;
+            }
+            
+            photo1.matchesPlayed++;
+            photo2.matchesPlayed++;
         };
         
         const updateProgress = () => {
             progressText.textContent = `Comparison ${comparisonsDone} of ${comparisonsToDo}`;
             const percentage = comparisonsToDo > 0 ? (comparisonsDone / comparisonsToDo) * 100 : 0;
             progressBarInner.style.width = `${percentage}%`;
+            completedPercentage.textContent = `${Math.round(percentage)}%`;
+            
+            if (startTime && comparisonsDone > 0) {
+                const elapsed = Date.now() - startTime;
+                const avgTime = elapsed / comparisonsDone;
+                const remaining = avgTime * (comparisonsToDo - comparisonsDone);
+                const minutes = Math.floor(remaining / 60000);
+                const seconds = Math.floor((remaining % 60000) / 1000);
+                estimatedTime.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            }
         };
         
         const showResults = () => {
-            photos.sort((a, b) => b.elo - a.elo);
+            sortPhotos();
+            renderTopThree();
+            renderGallery();
+            showScreen('results');
+        };
+
+        const sortPhotos = () => {
+            if (currentSortMethod === 'elo') {
+                photos.sort((a, b) => b.elo - a.elo);
+            } else if (currentSortMethod === 'matches') {
+                photos.sort((a, b) => b.matchesPlayed - a.matchesPlayed);
+            }
+        };
+
+        const renderTopThree = () => {
+            if (photos.length >= 3) {
+                topThree.classList.remove('hidden');
+                
+                const firstPlace = document.querySelector('#first-place img');
+                const firstElo = document.querySelector('#first-place span');
+                firstPlace.src = photos[0].src;
+                firstElo.textContent = Math.round(photos[0].elo);
+                
+                const secondPlace = document.querySelector('#second-place img');
+                const secondElo = document.querySelector('#second-place span');
+                secondPlace.src = photos[1].src;
+                secondElo.textContent = Math.round(photos[1].elo);
+                
+                const thirdPlace = document.querySelector('#third-place img');
+                const thirdElo = document.querySelector('#third-place span');
+                thirdPlace.src = photos[2].src;
+                thirdElo.textContent = Math.round(photos[2].elo);
+            } else {
+                topThree.classList.add('hidden');
+            }
+        };
+
+        const renderGallery = () => {
             resultsGallery.innerHTML = '';
             
             const startIndex = (currentPage - 1) * PHOTOS_PER_PAGE;
@@ -331,25 +704,31 @@
             const paginatedPhotos = photos.slice(startIndex, endIndex);
 
             paginatedPhotos.forEach((photo, index) => {
+                const globalIndex = startIndex + index;
                 const resultCard = document.createElement('div');
-                resultCard.className = 'bg-gray-700 rounded-lg overflow-hidden shadow-lg cursor-pointer transform hover:scale-105 transition-transform';
+                resultCard.className = 'bg-gray-700 rounded-lg overflow-hidden shadow-lg cursor-pointer transform hover:scale-105 transition-transform fade-in';
+                resultCard.style.animationDelay = `${index * 50}ms`;
                 resultCard.innerHTML = `
                     <div class="relative">
                         <img src="${photo.src}" class="w-full h-auto aspect-square object-cover" loading="lazy">
                         <div class="absolute top-2 left-2 bg-black bg-opacity-70 text-white font-bold rounded-full w-10 h-10 flex items-center justify-center text-xl">
-                            #${startIndex + index + 1}
+                            #${globalIndex + 1}
                         </div>
+                        ${photo.matchesPlayed > 0 ? `
+                        <div class="absolute top-2 right-2 bg-green-600 bg-opacity-90 text-white text-xs font-bold rounded-full px-2 py-1">
+                            ${photo.wins}W-${photo.losses}L-${photo.ties}T
+                        </div>` : ''}
                     </div>
                     <div class="p-4 text-center">
                         <p class="font-bold text-lg text-white">ELO: ${Math.round(photo.elo)}</p>
+                        <p class="text-sm text-gray-400">Matches: ${photo.matchesPlayed}</p>
                     </div>
                 `;
-                resultCard.addEventListener('click', () => openModal(photo.src));
+                resultCard.addEventListener('click', () => openModal(photo, globalIndex + 1));
                 resultsGallery.appendChild(resultCard);
             });
             
             renderPagination();
-            showScreen('results');
         };
 
         const renderPagination = () => {
@@ -357,20 +736,71 @@
             const totalPages = Math.ceil(photos.length / PHOTOS_PER_PAGE);
             if (totalPages <= 1) return;
 
-            for(let i = 1; i <= totalPages; i++) {
-                const pageButton = document.createElement('button');
-                pageButton.textContent = i;
-                pageButton.className = `w-10 h-10 rounded-md font-bold transition ${i === currentPage ? 'bg-blue-600 text-white' : 'bg-gray-600 hover:bg-gray-500'}`;
-                pageButton.addEventListener('click', () => {
-                    currentPage = i;
-                    showResults();
+            const createPageButton = (page, text = page) => {
+                const button = document.createElement('button');
+                button.textContent = text;
+                button.className = `w-10 h-10 rounded-md font-bold transition ${page === currentPage ? 'bg-blue-600 text-white' : 'bg-gray-600 hover:bg-gray-500'}`;
+                button.addEventListener('click', () => {
+                    currentPage = page;
+                    renderGallery();
                 });
-                paginationContainer.appendChild(pageButton);
+                return button;
+            };
+
+            if (currentPage > 1) {
+                const prevButton = document.createElement('button');
+                prevButton.innerHTML = '←';
+                prevButton.className = 'w-10 h-10 rounded-md font-bold bg-gray-600 hover:bg-gray-500 transition';
+                prevButton.addEventListener('click', () => {
+                    currentPage--;
+                    renderGallery();
+                });
+                paginationContainer.appendChild(prevButton);
+            }
+
+            let startPage = Math.max(1, currentPage - 2);
+            let endPage = Math.min(totalPages, currentPage + 2);
+
+            if (startPage > 1) {
+                paginationContainer.appendChild(createPageButton(1));
+                if (startPage > 2) {
+                    const dots = document.createElement('span');
+                    dots.textContent = '...';
+                    dots.className = 'px-2 text-gray-400';
+                    paginationContainer.appendChild(dots);
+                }
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                paginationContainer.appendChild(createPageButton(i));
+            }
+
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    const dots = document.createElement('span');
+                    dots.textContent = '...';
+                    dots.className = 'px-2 text-gray-400';
+                    paginationContainer.appendChild(dots);
+                }
+                paginationContainer.appendChild(createPageButton(totalPages));
+            }
+
+            if (currentPage < totalPages) {
+                const nextButton = document.createElement('button');
+                nextButton.innerHTML = '→';
+                nextButton.className = 'w-10 h-10 rounded-md font-bold bg-gray-600 hover:bg-gray-500 transition';
+                nextButton.addEventListener('click', () => {
+                    currentPage++;
+                    renderGallery();
+                });
+                paginationContainer.appendChild(nextButton);
             }
         };
 
-        const openModal = (src) => {
-            modalImage.src = src;
+        const openModal = (photo, rank) => {
+            modalImage.src = photo.src;
+            modalElo.textContent = Math.round(photo.elo);
+            modalRank.textContent = rank;
             modalScreen.classList.remove('hidden');
             modalScreen.classList.add('flex');
         };
@@ -381,32 +811,107 @@
             modalImage.src = '';
         };
 
+        const handlePause = () => {
+            pauseProgress.textContent = comparisonsDone;
+            pauseModal.classList.remove('hidden');
+            pauseModal.classList.add('flex');
+        };
+
+        const handleResume = () => {
+            pauseModal.classList.add('hidden');
+            pauseModal.classList.remove('flex');
+        };
+
+        const exportResults = () => {
+            const csv = ['Rank,Filename,ELO,Matches,Wins,Losses,Ties'];
+            photos.forEach((photo, index) => {
+                csv.push(`${index + 1},${photo.name},${Math.round(photo.elo)},${photo.matchesPlayed},${photo.wins},${photo.losses},${photo.ties}`);
+            });
+            
+            const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `photo-rankings-${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        };
+
         const resetApp = () => {
             resetPhotos();
             allPossiblePairs = [];
             comparisonsToDo = 0;
             comparisonsDone = 0;
             currentPair = [];
+            currentPairIndex = 0;
+            comparisonHistory = [];
             currentPage = 1;
+            currentSortMethod = 'elo';
+            startTime = null;
+            undoBtn.disabled = true;
             updateUploadUI();
             showScreen('upload');
         };
 
-        // --- EVENT LISTENERS ---
+        document.addEventListener('keydown', (e) => {
+            if (screens.ranking.classList.contains('active')) {
+                if (e.key === 'ArrowLeft') {
+                    handleChoice(0);
+                } else if (e.key === 'ArrowRight') {
+                    handleChoice(1);
+                } else if (e.key.toLowerCase() === 'u' && !undoBtn.disabled) {
+                    handleUndo();
+                } else if (e.key.toLowerCase() === 'e') {
+                    handleEqual();
+                }
+            }
+        });
+
         photoUpload.addEventListener('change', handleFileUpload);
+        clearPhotosBtn.addEventListener('click', () => {
+            resetPhotos();
+            updateUploadUI();
+        });
         startSetupBtn.addEventListener('click', setupSettings);
+        backToUploadBtn.addEventListener('click', () => showScreen('upload'));
         startRankingBtn.addEventListener('click', startRanking);
         imageChoices.forEach(choice => {
-            choice.addEventListener('click', (e) => handleChoice(parseInt(e.currentTarget.dataset.index, 10)));
+            choice.addEventListener('click', (e) => {
+                if (!choice.classList.contains('disabled')) {
+                    handleChoice(parseInt(e.currentTarget.dataset.index, 10));
+                }
+            });
         });
+        undoBtn.addEventListener('click', handleUndo);
+        equalBtn.addEventListener('click', handleEqual);
+        pauseBtn.addEventListener('click', handlePause);
+        resumeBtn.addEventListener('click', handleResume);
+        sortEloBtn.addEventListener('click', () => {
+            currentSortMethod = 'elo';
+            sortEloBtn.classList.add('bg-blue-600');
+            sortEloBtn.classList.remove('bg-gray-600');
+            sortMatchesBtn.classList.remove('bg-blue-600');
+            sortMatchesBtn.classList.add('bg-gray-600');
+            currentPage = 1;
+            showResults();
+        });
+        sortMatchesBtn.addEventListener('click', () => {
+            currentSortMethod = 'matches';
+            sortMatchesBtn.classList.add('bg-blue-600');
+            sortMatchesBtn.classList.remove('bg-gray-600');
+            sortEloBtn.classList.remove('bg-blue-600');
+            sortEloBtn.classList.add('bg-gray-600');
+            currentPage = 1;
+            showResults();
+        });
+        exportBtn.addEventListener('click', exportResults);
         resetBtn.addEventListener('click', resetApp);
         modalCloseBtn.addEventListener('click', closeModal);
         modalScreen.addEventListener('click', (e) => {
-            if(e.target === modalScreen) closeModal(); // Close if clicking on the background
+            if(e.target === modalScreen) closeModal();
         });
     });
 </script>
 
 </body>
 </html>
-
