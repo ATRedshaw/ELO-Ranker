@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo ELO Ranker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .screen {
+            display: none;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+        .screen.active {
+            display: flex;
+            opacity: 1;
+        }
+        .image-choice-container {
+            transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+        }
+        .image-choice-container:hover {
+            transform: scale(1.03);
+            box-shadow: 0 0 30px rgba(96, 165, 250, 0.5); /* blue-400 glow */
+        }
+        #image-preview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 1rem;
+        }
+        #modal-screen {
+            transition: opacity 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200 flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-6xl mx-auto">
+        <!-- Screen 1: Upload Photos -->
+        <div id="upload-screen" class="screen active flex-col items-center justify-center text-center p-8 bg-gray-800 rounded-2xl shadow-2xl">
+            <h1 class="text-4xl md:text-5xl font-bold text-white mb-4">Photo ELO Ranker</h1>
+            <p class="text-lg text-gray-400 mb-8">Upload a set of photos to compare them head-to-head and find your top-ranked ones.</p>
+            
+            <label for="photo-upload" class="w-full max-w-lg cursor-pointer bg-gray-700 hover:bg-gray-600 border-2 border-dashed border-gray-500 rounded-xl p-8 text-center transition mb-6">
+                <span id="upload-prompt" class="text-gray-400">Click to select photos or drag and drop</span>
+                <input id="photo-upload" type="file" class="hidden" multiple accept="image/*">
+            </label>
+            
+            <div id="image-preview-container" class="w-full max-w-4xl mb-6 hidden">
+                <h3 class="text-xl font-bold mb-4">Uploaded Photos: <span id="photo-count-preview">0</span></h3>
+                <div id="image-preview-grid" class="max-h-64 overflow-y-auto p-4 bg-gray-900 rounded-lg"></div>
+            </div>
+
+            <button id="start-setup-btn" class="bg-blue-600 text-white font-bold py-3 px-8 rounded-lg text-lg hover:bg-blue-700 transition transform hover:scale-105 disabled:bg-gray-600 disabled:cursor-not-allowed disabled:scale-100" disabled>
+                Continue to Settings
+            </button>
+            <p id="upload-hint" class="text-gray-500 mt-4 text-sm">Please upload at least 2 photos to begin.</p>
+        </div>
+
+        <!-- Screen 2: Settings -->
+        <div id="settings-screen" class="screen flex-col items-center justify-center text-center p-8 bg-gray-800 rounded-2xl shadow-2xl">
+            <h2 class="text-4xl font-bold text-white mb-4">Set Number of Comparisons</h2>
+            <p class="text-lg text-gray-400 mb-2">More comparisons yield more accurate rankings but take longer.</p>
+            <p class="text-md text-gray-400 mb-8">For <strong id="photo-count" class="text-blue-400">0</strong> photos, <strong id="recommended-comparisons" class="text-blue-400">0</strong> comparisons are recommended. <br> (Max unique pairs: <strong id="max-comparisons" class="text-blue-400">0</strong>)</p>
+            
+            <div class="mb-8 w-full max-w-xs">
+                 <label for="comparisons-input" class="block text-left font-medium text-gray-300 mb-2">Total comparisons:</label>
+                 <input type="number" id="comparisons-input" min="1" class="w-full bg-gray-700 border border-gray-600 text-white text-center text-xl p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <button id="start-ranking-btn" class="bg-green-600 text-white font-bold py-3 px-8 rounded-lg text-lg hover:bg-green-700 transition transform hover:scale-105">
+                Start Ranking
+            </button>
+        </div>
+
+        <!-- Screen 3: Ranking -->
+        <div id="ranking-screen" class="screen flex-col items-center justify-center w-full">
+            <h2 class="text-3xl font-bold text-white mb-2">Which one do you prefer?</h2>
+            
+            <div class="w-full max-w-3xl mb-4">
+                <div class="flex justify-between text-sm font-medium text-gray-400 mb-1">
+                    <span>Progress</span>
+                    <span id="progress-text">Comparison 0 of 0</span>
+                </div>
+                <div class="w-full bg-gray-700 rounded-full h-4">
+                    <div id="progress-bar-inner" class="bg-blue-600 h-4 rounded-full transition-all duration-300 ease-linear" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-4 md:gap-8 w-full items-center justify-center mt-4">
+                <div class="image-choice-container w-full md:w-1/2 max-w-lg cursor-pointer bg-gray-800 rounded-xl overflow-hidden shadow-lg border-4 border-transparent" data-index="0">
+                    <img id="img-left" class="w-full h-auto object-cover aspect-square" src="https://placehold.co/600x600/111827/FFF?text=Image+1">
+                </div>
+                <div class="image-choice-container w-full md:w-1/2 max-w-lg cursor-pointer bg-gray-800 rounded-xl overflow-hidden shadow-lg border-4 border-transparent" data-index="1">
+                    <img id="img-right" class="w-full h-auto object-cover aspect-square" src="https://placehold.co/600x600/111827/FFF?text=Image+2">
+                </div>
+            </div>
+        </div>
+
+        <!-- Screen 4: Results -->
+        <div id="results-screen" class="screen flex-col items-center justify-center p-8 bg-gray-800 rounded-2xl shadow-2xl">
+            <h2 class="text-4xl font-bold text-white mb-8">Ranking Results</h2>
+            <div id="results-gallery" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 w-full max-w-6xl mb-8">
+                <!-- Results will be injected here -->
+            </div>
+            <div id="pagination-container" class="flex items-center justify-center gap-2 mt-2">
+                <!-- Pagination buttons will be injected here -->
+            </div>
+            <button id="reset-btn" class="bg-blue-600 text-white font-bold py-3 px-8 rounded-lg text-lg hover:bg-blue-700 transition transform hover:scale-105 mt-8">
+                Start Over
+            </button>
+        </div>
+    </div>
+
+    <!-- Screen 5: Fullscreen Image Modal -->
+    <div id="modal-screen" class="fixed inset-0 bg-black bg-opacity-90 hidden items-center justify-center p-4 z-50">
+        <div class="relative max-w-4xl max-h-full">
+            <img id="modal-image" src="" class="max-w-full max-h-[90vh] object-contain rounded-lg">
+            <button id="modal-close-btn" class="absolute -top-3 -right-3 bg-white text-black rounded-full h-10 w-10 flex items-center justify-center font-bold text-2xl hover:bg-gray-300 transition">&times;</button>
+        </div>
+    </div>
+
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- STATE MANAGEMENT ---
+        let photos = [];
+        let allPossiblePairs = [];
+        let comparisonsToDo = 0;
+        let comparisonsDone = 0;
+        let currentPair = [];
+        const K_FACTOR = 32; // Standard ELO K-factor
+        const PHOTOS_PER_PAGE = 10;
+        let currentPage = 1;
+
+
+        // --- DOM ELEMENTS ---
+        const screens = {
+            upload: document.getElementById('upload-screen'),
+            settings: document.getElementById('settings-screen'),
+            ranking: document.getElementById('ranking-screen'),
+            results: document.getElementById('results-screen'),
+        };
+        const modalScreen = document.getElementById('modal-screen');
+        const modalImage = document.getElementById('modal-image');
+        const modalCloseBtn = document.getElementById('modal-close-btn');
+
+        const photoUpload = document.getElementById('photo-upload');
+        const imagePreviewContainer = document.getElementById('image-preview-container');
+        const imagePreviewGrid = document.getElementById('image-preview-grid');
+        const photoCountPreview = document.getElementById('photo-count-preview');
+        const startSetupBtn = document.getElementById('start-setup-btn');
+        const uploadHint = document.getElementById('upload-hint');
+
+        const photoCountSpan = document.getElementById('photo-count');
+        const recommendedComparisonsSpan = document.getElementById('recommended-comparisons');
+        const maxComparisonsSpan = document.getElementById('max-comparisons');
+        const comparisonsInput = document.getElementById('comparisons-input');
+        const startRankingBtn = document.getElementById('start-ranking-btn');
+
+        const progressText = document.getElementById('progress-text');
+        const progressBarInner = document.getElementById('progress-bar-inner');
+        const imgLeft = document.getElementById('img-left');
+        const imgRight = document.getElementById('img-right');
+        const imageChoices = document.querySelectorAll('.image-choice-container');
+
+        const resultsGallery = document.getElementById('results-gallery');
+        const paginationContainer = document.getElementById('pagination-container');
+        const resetBtn = document.getElementById('reset-btn');
+
+        // --- FUNCTIONS ---
+
+        const showScreen = (screenName) => {
+            Object.values(screens).forEach(screen => screen.classList.remove('active'));
+            if (screens[screenName]) screens[screenName].classList.add('active');
+        };
+
+        const handleFileUpload = (event) => {
+            const files = event.target.files;
+            if (!files) return;
+            resetPhotos();
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if (file.type.startsWith('image/')) {
+                    photos.push({
+                        id: i,
+                        name: file.name,
+                        src: URL.createObjectURL(file),
+                        elo: 1000,
+                        matchesPlayed: 0
+                    });
+                }
+            }
+            updateUploadUI();
+        };
+
+        const updateUploadUI = () => {
+            imagePreviewGrid.innerHTML = '';
+            photos.forEach(photo => {
+                const img = document.createElement('img');
+                img.src = photo.src;
+                img.className = 'w-full h-full object-cover rounded-md';
+                imagePreviewGrid.appendChild(img);
+            });
+            photoCountPreview.textContent = photos.length;
+            imagePreviewContainer.classList.toggle('hidden', photos.length === 0);
+
+            if (photos.length >= 2) {
+                startSetupBtn.disabled = false;
+                uploadHint.classList.add('hidden');
+                // Reset styles
+                uploadHint.classList.add('text-gray-500');
+                uploadHint.classList.remove('text-red-400', 'font-semibold');
+                uploadHint.textContent = 'Please upload at least 2 photos to begin.';
+            } else {
+                startSetupBtn.disabled = true;
+                uploadHint.classList.remove('hidden');
+                
+                if (photos.length > 0) { // User has uploaded files, but not enough
+                     uploadHint.classList.remove('text-gray-500');
+                     uploadHint.classList.add('text-red-400', 'font-semibold');
+                     uploadHint.textContent = `Error: Please upload at least 2 photos. You've only selected ${photos.length}.`;
+                } else { // Initial state, 0 photos
+                     uploadHint.classList.add('text-gray-500');
+                     uploadHint.classList.remove('text-red-400', 'font-semibold');
+                     uploadHint.textContent = 'Please upload at least 2 photos to begin.';
+                }
+            }
+        };
+
+        const resetPhotos = () => {
+             photos.forEach(photo => URL.revokeObjectURL(photo.src));
+             photos = [];
+        };
+
+        const setupSettings = () => {
+            allPossiblePairs = [];
+            for (let i = 0; i < photos.length; i++) {
+                for (let j = i + 1; j < photos.length; j++) {
+                    allPossiblePairs.push([i, j]);
+                }
+            }
+
+            // Fisher-Yates Shuffle
+            for (let i = allPossiblePairs.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [allPossiblePairs[i], allPossiblePairs[j]] = [allPossiblePairs[j], allPossiblePairs[i]];
+            }
+
+            const n = photos.length;
+            const recommended = Math.min(Math.ceil(n * 5), allPossiblePairs.length);
+            photoCountSpan.textContent = n;
+            recommendedComparisonsSpan.textContent = recommended;
+            maxComparisonsSpan.textContent = allPossiblePairs.length;
+            comparisonsInput.value = recommended;
+            comparisonsInput.max = allPossiblePairs.length;
+            showScreen('settings');
+        };
+
+        const startRanking = () => {
+            let userInput = parseInt(comparisonsInput.value, 10);
+            if (isNaN(userInput) || userInput < 1) userInput = 1;
+            
+            comparisonsToDo = Math.min(userInput, allPossiblePairs.length);
+            comparisonsDone = 0;
+            updateProgress();
+            displayNextPair();
+            showScreen('ranking');
+        };
+
+        const displayNextPair = () => {
+            if (comparisonsDone >= comparisonsToDo) {
+                showResults();
+                return;
+            }
+
+            const pairIndices = allPossiblePairs[comparisonsDone];
+            const index1 = pairIndices[0];
+            const index2 = pairIndices[1];
+            
+            currentPair = [index1, index2];
+            imgLeft.src = photos[index1].src;
+            imgRight.src = photos[index2].src;
+        };
+
+        const handleChoice = (selectedIndexInPair) => {
+            const winnerIndex = currentPair[selectedIndexInPair];
+            const loserIndex = currentPair[1 - selectedIndexInPair];
+            updateElo(winnerIndex, loserIndex);
+            comparisonsDone++;
+            updateProgress();
+            
+            imageChoices[selectedIndexInPair].style.borderColor = '#10B981';
+            setTimeout(() => {
+                imageChoices[selectedIndexInPair].style.borderColor = 'transparent';
+                displayNextPair();
+            }, 300);
+        };
+
+        const updateElo = (winnerIndex, loserIndex) => {
+            const winner = photos[winnerIndex];
+            const loser = photos[loserIndex];
+
+            const winnerExpected = 1 / (1 + Math.pow(10, (loser.elo - winner.elo) / 400));
+            const loserExpected = 1 / (1 + Math.pow(10, (winner.elo - loser.elo) / 400));
+
+            winner.elo += K_FACTOR * (1 - winnerExpected);
+            loser.elo += K_FACTOR * (0 - loserExpected);
+            
+            winner.matchesPlayed++;
+            loser.matchesPlayed++;
+        };
+        
+        const updateProgress = () => {
+            progressText.textContent = `Comparison ${comparisonsDone} of ${comparisonsToDo}`;
+            const percentage = comparisonsToDo > 0 ? (comparisonsDone / comparisonsToDo) * 100 : 0;
+            progressBarInner.style.width = `${percentage}%`;
+        };
+        
+        const showResults = () => {
+            photos.sort((a, b) => b.elo - a.elo);
+            resultsGallery.innerHTML = '';
+            
+            const startIndex = (currentPage - 1) * PHOTOS_PER_PAGE;
+            const endIndex = startIndex + PHOTOS_PER_PAGE;
+            const paginatedPhotos = photos.slice(startIndex, endIndex);
+
+            paginatedPhotos.forEach((photo, index) => {
+                const resultCard = document.createElement('div');
+                resultCard.className = 'bg-gray-700 rounded-lg overflow-hidden shadow-lg cursor-pointer transform hover:scale-105 transition-transform';
+                resultCard.innerHTML = `
+                    <div class="relative">
+                        <img src="${photo.src}" class="w-full h-auto aspect-square object-cover" loading="lazy">
+                        <div class="absolute top-2 left-2 bg-black bg-opacity-70 text-white font-bold rounded-full w-10 h-10 flex items-center justify-center text-xl">
+                            #${startIndex + index + 1}
+                        </div>
+                    </div>
+                    <div class="p-4 text-center">
+                        <p class="font-bold text-lg text-white">ELO: ${Math.round(photo.elo)}</p>
+                    </div>
+                `;
+                resultCard.addEventListener('click', () => openModal(photo.src));
+                resultsGallery.appendChild(resultCard);
+            });
+            
+            renderPagination();
+            showScreen('results');
+        };
+
+        const renderPagination = () => {
+            paginationContainer.innerHTML = '';
+            const totalPages = Math.ceil(photos.length / PHOTOS_PER_PAGE);
+            if (totalPages <= 1) return;
+
+            for(let i = 1; i <= totalPages; i++) {
+                const pageButton = document.createElement('button');
+                pageButton.textContent = i;
+                pageButton.className = `w-10 h-10 rounded-md font-bold transition ${i === currentPage ? 'bg-blue-600 text-white' : 'bg-gray-600 hover:bg-gray-500'}`;
+                pageButton.addEventListener('click', () => {
+                    currentPage = i;
+                    showResults();
+                });
+                paginationContainer.appendChild(pageButton);
+            }
+        };
+
+        const openModal = (src) => {
+            modalImage.src = src;
+            modalScreen.classList.remove('hidden');
+            modalScreen.classList.add('flex');
+        };
+
+        const closeModal = () => {
+            modalScreen.classList.add('hidden');
+            modalScreen.classList.remove('flex');
+            modalImage.src = '';
+        };
+
+        const resetApp = () => {
+            resetPhotos();
+            allPossiblePairs = [];
+            comparisonsToDo = 0;
+            comparisonsDone = 0;
+            currentPair = [];
+            currentPage = 1;
+            updateUploadUI();
+            showScreen('upload');
+        };
+
+        // --- EVENT LISTENERS ---
+        photoUpload.addEventListener('change', handleFileUpload);
+        startSetupBtn.addEventListener('click', setupSettings);
+        startRankingBtn.addEventListener('click', startRanking);
+        imageChoices.forEach(choice => {
+            choice.addEventListener('click', (e) => handleChoice(parseInt(e.currentTarget.dataset.index, 10)));
+        });
+        resetBtn.addEventListener('click', resetApp);
+        modalCloseBtn.addEventListener('click', closeModal);
+        modalScreen.addEventListener('click', (e) => {
+            if(e.target === modalScreen) closeModal(); // Close if clicking on the background
+        });
+    });
+</script>
+
+</body>
+</html>
+
